@@ -553,6 +553,45 @@ func (c *Client) ReplacePlaylistTracks(ctx context.Context, playlistID ID, track
 	return c.execute(req, nil, http.StatusCreated)
 }
 
+// AddEpisodesToPlaylist [adds one or more tracks to a user's playlist].
+// This call requires [ScopePlaylistModifyPublic] or [ScopePlaylistModifyPrivate].
+// A maximum of 100 tracks can be added per call.  It returns a snapshot ID that
+// can be used to identify this version (the new version) of the playlist in
+// future requests.
+//
+// [adds one or more tracks to a user's playlist]: https://developer.spotify.com/documentation/web-api/reference/add-tracks-to-playlist
+func (c *Client) AddEpisodesToPlaylist(ctx context.Context, playlistID ID, trackIDs ...ID) (snapshotID string, err error) {
+	uris := make([]string, len(trackIDs))
+	for i, id := range trackIDs {
+		uris[i] = fmt.Sprintf("spotify:episode:%s", id)
+	}
+	m := make(map[string]interface{})
+	m["uris"] = uris
+
+	spotifyURL := fmt.Sprintf("%splaylists/%s/episodes",
+		c.baseURL, string(playlistID))
+	body, err := json.Marshal(m)
+	if err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", spotifyURL, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	result := struct {
+		SnapshotID string `json:"snapshot_id"`
+	}{}
+
+	err = c.execute(req, &result, http.StatusCreated)
+	if err != nil {
+		return "", err
+	}
+
+	return result.SnapshotID, nil
+}
+
 // ReplacePlaylistItems [replaces all the items in a playlist], overwriting its
 // existing tracks  This can be useful for replacing or reordering tracks, or for
 // clearing a playlist.
